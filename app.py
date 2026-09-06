@@ -14,7 +14,7 @@ if uploaded_file is not None:
 
     if st.button("Send PDF to n8n"):
 
-        webhook_url = "PUT_YOUR_N8N_TEST_WEBHOOK_URL_HERE"
+        webhook_url = "https://sabothneen.app.n8n.cloud/webhook-test/pdf-agents"
 
         files = {
             "file": (
