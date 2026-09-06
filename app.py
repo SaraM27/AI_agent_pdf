@@ -84,14 +84,6 @@ if uploaded_file is not None:
                 st.write(e)
 
 
-        st.write("Response from n8n:")
-
-        try:
-            st.json(response.json())
-        except:
-            st.write(response.text)
-
-
 
 st.divider()
 st.subheader("💬 Ask about this PDF")
