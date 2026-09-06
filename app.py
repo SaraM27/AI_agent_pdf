@@ -10,7 +10,8 @@ st.set_page_config(
 st.title("📄 PDF AI Assistant")
 
 st.write(
-    "Upload a PDF file and let the AI agent analyze and summarize it."
+    "Upload a PDF file and let the AI agent analyze, summarize, "
+    "and answer questions about it."
 )
 
 uploaded_file = st.file_uploader(
@@ -18,13 +19,19 @@ uploaded_file = st.file_uploader(
     type=["pdf"]
 )
 
+# -----------------------------------
+# PDF Analysis
+# -----------------------------------
+
 if uploaded_file is not None:
 
     st.success(f"Selected file: {uploaded_file.name}")
 
     if st.button("Analyze PDF"):
 
-        webhook_url = "https://sabothneen.app.n8n.cloud/webhook/pdf-agents"
+        webhook_url = (
+            "https://sabothneen.app.n8n.cloud/webhook/pdf-agents"
+        )
 
         files = {
             "file": (
@@ -40,33 +47,61 @@ if uploaded_file is not None:
 
                 response = requests.post(
                     webhook_url,
-                    files=files
+                    files=files,
+                    timeout=120
                 )
 
                 if response.status_code == 200:
 
                     result = response.json()
 
-                    st.success("Analysis completed successfully.")
+                    st.success(
+                        "Analysis completed successfully."
+                    )
 
                     st.divider()
 
                     st.subheader("📌 Document Title")
-                    st.write(result["title"])
+                    st.write(
+                        result.get(
+                            "title",
+                            "Title not available"
+                        )
+                    )
 
                     st.subheader("📝 Summary")
-                    st.write(result["summary"])
+                    st.write(
+                        result.get(
+                            "summary",
+                            "Summary not available"
+                        )
+                    )
 
                     st.subheader("🎯 Main Topic")
-                    st.write(result["main_topic"])
+                    st.write(
+                        result.get(
+                            "main_topic",
+                            "Main topic not available"
+                        )
+                    )
 
                     st.subheader("🔑 Key Points")
 
-                    for i, point in enumerate(
-                        result["key_points"],
-                        start=1
-                    ):
-                        st.write(f"{i}. {point}")
+                    key_points = result.get(
+                        "key_points",
+                        []
+                    )
+
+                    if key_points:
+                        for i, point in enumerate(
+                            key_points,
+                            start=1
+                        ):
+                            st.write(f"{i}. {point}")
+                    else:
+                        st.write(
+                            "No key points available."
+                        )
 
                 else:
 
@@ -79,13 +114,19 @@ if uploaded_file is not None:
 
             except Exception as e:
 
-                st.error("Something went wrong.")
+                st.error(
+                    "Something went wrong while analyzing the PDF."
+                )
 
                 st.write(e)
 
 
+# -----------------------------------
+# PDF Question & Answer
+# -----------------------------------
 
 st.divider()
+
 st.subheader("💬 Ask about this PDF")
 
 question = st.text_input(
@@ -94,41 +135,116 @@ question = st.text_input(
 
 if st.button("Ask AI"):
 
-    question_webhook_url = "https://sabothneen.app.n8n.cloud/webhook/pdf-qa"
+    if uploaded_file is None:
 
-    files = {
-        "file": (
-            uploaded_file.name,
-            uploaded_file.getvalue(),
-            "application/pdf"
-        )
-    }
-
-    data = {
-        "question": question
-    }
-
-    with st.spinner("Thinking..."):
-
-        response = requests.post(
-            question_webhook_url,
-            files=files,
-            data=data
+        st.warning(
+            "Please upload a PDF first."
         )
 
-        if response.status_code == 200:
+    elif not question.strip():
 
-            result = response.json()
+        st.warning(
+            "Please enter a question."
+        )
 
-            st.success("Answer generated successfully.")
-            st.subheader("🤖 Answer")
-            st.write(result["answer"])
+    else:
 
-        else:
+        question_webhook_url = (
+            "https://sabothneen.app.n8n.cloud/webhook/pdf-qa"
+        )
 
-            st.error(
-                f"Request failed with status code: "
-                f"{response.status_code}"
+        files = {
+            "file": (
+                uploaded_file.name,
+                uploaded_file.getvalue(),
+                "application/pdf"
             )
+        }
 
-            st.write(response.text)
+        data = {
+            "question": question
+        }
+
+        with st.spinner("Thinking..."):
+
+            try:
+
+                response = requests.post(
+                    question_webhook_url,
+                    files=files,
+                    data=data,
+                    timeout=120
+                )
+
+                if response.status_code == 200:
+
+                    result = response.json()
+
+                    # Try different possible n8n response formats
+                    answer = None
+
+                    if "answer" in result:
+                        answer = result["answer"]
+
+                    elif (
+                        "output" in result
+                        and isinstance(
+                            result["output"],
+                            dict
+                        )
+                        and "answer" in result["output"]
+                    ):
+                        answer = result["output"]["answer"]
+
+                    elif (
+                        "output" in result
+                        and isinstance(
+                            result["output"],
+                            str
+                        )
+                    ):
+                        answer = result["output"]
+
+                    elif "message" in result:
+                        answer = result["message"]
+
+                    if answer:
+
+                        st.success(
+                            "Answer generated successfully."
+                        )
+
+                        st.subheader("🤖 Answer")
+
+                        st.write(answer)
+
+                    else:
+
+                        st.error(
+                            "n8n returned a response, "
+                            "but no answer field was found."
+                        )
+
+                        st.write(
+                            "Response received from n8n:"
+                        )
+
+                        st.json(result)
+
+                else:
+
+                    st.error(
+                        f"Request failed with status code: "
+                        f"{response.status_code}"
+                    )
+
+                    st.write(response.text)
+
+            except Exception as e:
+
+                st.error(
+                    "Something went wrong while "
+                    "generating the answer."
+                )
+
+                st.write(e)
